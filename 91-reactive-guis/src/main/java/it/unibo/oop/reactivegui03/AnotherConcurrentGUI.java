@@ -2,12 +2,14 @@ package it.unibo.oop.reactivegui03;
 
 import java.awt.Dimension;
 import java.awt.Toolkit;
+import java.lang.reflect.InvocationTargetException;
 import java.awt.FlowLayout;
 
 import javax.swing.JButton;
 import javax.swing.JFrame;
 import javax.swing.JLabel;
 import javax.swing.JPanel;
+import javax.swing.SwingUtilities;
 
 /**
  * Third experiment with reactive gui.
@@ -15,10 +17,11 @@ import javax.swing.JPanel;
 public final class AnotherConcurrentGUI extends JFrame {
     private static final double WIDTH_RATIO = 0.2;
     private static final double HEIGHT_RATIO = 0.08;
-    private volatile boolean stop;
     public final JLabel display = new JLabel();
     public final JButton up = new JButton("up");
     public final JButton down = new JButton("down");
+    final JButton stop = new JButton("stop");
+    final Agent counter = new Agent();
     
 
     public AnotherConcurrentGUI() {
@@ -30,7 +33,6 @@ public final class AnotherConcurrentGUI extends JFrame {
         canvas.add(display);
         canvas.add(up);
         canvas.add(down);
-        final JButton stop = new JButton("stop");
         canvas.add(stop);
 
         /* Setting frame dimensions */
@@ -42,10 +44,18 @@ public final class AnotherConcurrentGUI extends JFrame {
         this.setVisible(true);
         
         /* Threads */
-        final Agent counter = new Agent();
-        final secondAgent stopper = new secondAgent();
         new Thread(counter).start();
-        new Thread(stopper).start();
+        new Thread(new Runnable() {
+            @Override
+            public void run() {
+                try {
+                    Thread.sleep(10000);
+                } catch (InterruptedException e) {
+                    e.printStackTrace();
+                }
+                stop();
+            }
+        }).start();
 
         /* Listeners */
         up.addActionListener((e)->counter.up());
@@ -53,16 +63,30 @@ public final class AnotherConcurrentGUI extends JFrame {
         stop.addActionListener((e)->counter.stop());
     }
 
+    private void stop() {
+        counter.stop();
+        try {
+            SwingUtilities.invokeAndWait(() -> {
+                stop.setEnabled(false);
+                up.setEnabled(false);
+                down.setEnabled(false);
+            });
+        } catch (InvocationTargetException | InterruptedException e) {
+            e.printStackTrace();
+        }
+    }
+
     private class Agent implements Runnable {
+        private volatile boolean stop;
         private volatile boolean down;
         private int counter;
 
         @Override
         public void run() {
-            while(!AnotherConcurrentGUI.this.stop) {
+            while(!this.stop) {
                 try {
                     this.counter += this.down ? -1 : +1;
-                    AnotherConcurrentGUI.this.display.setText(Integer.toString(counter));
+                    SwingUtilities.invokeAndWait(() -> AnotherConcurrentGUI.this.display.setText(Integer.toString(counter)));
                     Thread.sleep(100);
                 } catch (Exception e) {
                     e.getStackTrace();
@@ -71,9 +95,7 @@ public final class AnotherConcurrentGUI extends JFrame {
         }
 
         public void stop() {
-            AnotherConcurrentGUI.this.stop = true;
-            AnotherConcurrentGUI.this.up.setEnabled(false);
-            AnotherConcurrentGUI.this.down.setEnabled(false);
+            this.stop = true;
         }
 
         public void up() {
@@ -84,26 +106,5 @@ public final class AnotherConcurrentGUI extends JFrame {
             this.down = true;
         }
 
-    }
-
-    private class secondAgent implements Runnable {
-        private int counter;
-
-        @Override
-        public void run() {
-            while(this.counter<100) {
-                try {
-                    counter++;
-                    Thread.sleep(100);
-                } catch (InterruptedException e) {
-                    e.printStackTrace();
-                }
-            }
-            AnotherConcurrentGUI.this.stop = true;
-            AnotherConcurrentGUI.this.up.setEnabled(false);
-            AnotherConcurrentGUI.this.down.setEnabled(false);
-            
-        }
-        
     }
 }
