@@ -4,19 +4,22 @@ import java.util.ArrayList;
 import java.util.List;
 
 public class MultiThreadedSumMatrix implements SumMatrix{
-    private int nthread;
+    private int nThread;
 
+    /**
+     * 
+     * @param nthread thread richiesti per sommare la matrice
+     */
     public MultiThreadedSumMatrix(int nthread) {
-        this.nthread = nthread;
+        this.nThread = nthread;
     }
 
     @Override
     public double sum(double[][] matrix) {
-        int numElements = (matrix.length * matrix[0].length);
-        int size = (numElements % nthread) + (numElements / nthread);
+        int size = (matrix.length % nThread) + (matrix.length / nThread);
 
-        final List<Worker> workers = new ArrayList<>(nthread);
-        for (int start = 0; start < numElements; start += size) {
+        final List<Worker> workers = new ArrayList<>(nThread);
+        for (int start = 0; start < matrix.length; start += size) {
             workers.add(new Worker(matrix, start, size));
         }
 
@@ -30,42 +33,39 @@ public class MultiThreadedSumMatrix implements SumMatrix{
                 w.join();
                 tot += w.getResult();
             } catch (InterruptedException e) {
-                e.printStackTrace();
+                throw new IllegalStateException(e);
             }
             
         }
         return tot;
     }
-
+    
     public static class Worker extends Thread {
         private double[][] matrix;
-        private int startRow;
-        private int startColumn;
-        private int endRow;
-        private int endColumn;
+        private int start;
         private int size;
         private double res = 0;
 
-        public Worker(double[][] matrix, int startElement, int size) {
+        /**
+         * 
+         * @param matrix la matrice da sommare
+         * @param start la riga dalla quale devo iniziare a sommare
+         * @param size il numero di righe da sommare 
+         */
+        public Worker(double[][] matrix, int start, int size) {
             this.matrix = matrix;
-            this.startRow = startElement / matrix[0].length;
-            this.startColumn = startElement % matrix[0].length;
-            this.endRow = (startElement + size - 1) / matrix[0].length;
-            this.endColumn = (startElement + size - 1) % matrix[0].length;
+            this.start = start;
             this.size = size;
         }
 
         @Override
         public void run() {
-            System.out.println("Working from position " + startRow + "x" + startColumn + " to position " + endRow + "x" + endColumn);
-            for (int i = 0; i < size && startRow <= matrix.length && startColumn <= matrix[0].length; i++, startColumn++) {
-
-                if (startColumn >= matrix[0].length) {
-                    startColumn = 0;
-                    startRow++;
+            for (int i = start; i < start + size && i < matrix.length; i++ ) {
+                for (double curr : matrix[i]) {
+                    res += curr;
                 }
-                res += matrix[startRow][startColumn];
             }
+            
         }
 
         public double getResult() {
